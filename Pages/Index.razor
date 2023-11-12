@@ -1,0 +1,114 @@
+﻿@page "/"
+@using BlazorWebWorkASV.Data;
+@using ClosedXML.Excel;
+@using Microsoft.AspNetCore.Mvc;
+@using OfficeOpenXml;
+@using System.Diagnostics;
+@inject IJSRuntime JSRuntime;
+
+<PageTitle>Снилсы</PageTitle>
+
+<InputFile OnChange="@LoadFiles" multiple />
+
+<h1>Количесвто записей: @Snils.Count</h1>
+
+<button @onclick="@GenerateExcel">Убрать пробелы и тире</button>
+
+
+
+
+
+
+@code{
+
+    private string name = "Полный путь файла";
+
+    private List<Snils> Snils = new List<Snils>();
+
+    private List<Snils> NormSnils = new List<Snils>();
+
+    private void LoadFiles(InputFileChangeEventArgs e)
+    {
+
+
+        name = $@"C:\Users\ruste\OneDrive\Рабочий стол\{e.File.Name}"; // Поменять путь для своего робочего стола!!!
+
+        FileInfo existingFile = new FileInfo(name);
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+        using (ExcelPackage package = new ExcelPackage(existingFile))
+        {
+            ExcelWorksheet worksheet = package.Workbook.Worksheets.FirstOrDefault();
+
+            int colCount = worksheet.Dimension.End.Column;
+            int rowCount = worksheet.Dimension.End.Row;
+
+            for (int row = 1; row <= rowCount; row++)
+            {
+                Snils snils = new Snils();
+
+                for (int col = 1; col <= colCount; col++)
+                {
+                    snils.Number = worksheet.Cells[row, col].Value.ToString();                   
+                }
+
+                Snils.Add(snils);
+            }
+        }
+
+    }
+
+    private async Task GenerateExcel()
+    {
+        var excelBytes = GenerateExcelFile();
+        var fileName = "Snils.xlsx";
+
+        // Преобразуйте байты в строку Base64
+        var base64 = Convert.ToBase64String(excelBytes);
+
+        // Вызовите JavaScript функцию для создания виртуальной ссылки и скачивания файла
+        await JSRuntime.InvokeVoidAsync("downloadFile", base64, fileName, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    public byte[] GenerateExcelFile()
+    {
+
+        foreach (var item in Snils)
+        {
+            var dataOne = item.Number.Replace("-","");
+            var dataTwo = dataOne.Replace(" ","");
+
+            var NewSnils = new Snils()
+            {
+                Number=dataTwo
+            };
+
+            NormSnils.Add(NewSnils);
+        }
+
+
+
+        using (var package = new ExcelPackage())
+        {
+            int row = 0;
+
+            // Добавьте лист в файл
+            var worksheet = package.Workbook.Worksheets.Add("Снилсы");
+
+            // Добавьте данные в лист
+            worksheet.Cells["B1"].Value = "<-Снилсы";
+
+            foreach (var snils in NormSnils)
+            {
+                row++;
+                worksheet.Cells[$"A{row}"].Value = snils.Number;
+            }
+
+           
+
+            // Сохраните файл в массив байт
+            return package.GetAsByteArray();
+        }
+    }
+}
+
